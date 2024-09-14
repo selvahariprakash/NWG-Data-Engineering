@@ -1,0 +1,28 @@
+Create zone tables for lakehouse architecture using AWS Glue and the AWS Data Catalog
+Load data into zone tables using Glue Studio
+Ingest sensitive data into a trusted zone
+Process data into curated zone tables
+
+Lakehouse Architecture
+	Landing Zone - Data ingested from the source into the landing zone as-is
+	Raw Zone - Processing layer validates the landing zone data and stores in
+	Trusted Zone - Processing layer applies the schema, partitioning, and other transformationsto the raw zone to bring it to the 
+	Curated Zone - Processing layer curates a trusted zone dataset by modelling and joining wiht other datasets and stores in
+
+Use Glue Catalog to Query a Landing Zone
+	Glue Data Catalog - represents many sources and destinations for data
+	Glue Table - is a definition of a specific group of fields that represents a logical entity
+		Glue tables are just a metadata catalog layer
+		These tables are not physically stored in Glue
+		They store a reference to the data we can query or store
+		
+	Three ways to define a Glue Table in a Glue Catalog:
+		Use Glue Console to define each field
+			AWS Athena - a Glue Catalog Query Tool
+			Athena tool is a serverless query service where you can write SQL to run ad-hoc queries on S3 buckets
+				(ad-hoc - a special and immediate purpose, without previous planning)
+		Configure a Glue Job to generate a table definition automatically
+		Use SQL to define a table with DDL (Data Definition Language) or create statements
+		
+	Define a Landing Zone Table
+		https://www.youtube.com/watch?v=zyR59TK3s5g&t=167s

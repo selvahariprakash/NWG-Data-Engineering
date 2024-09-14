@@ -1,0 +1,90 @@
+Landing Zone
+	Use Glue studio to ingest data from an S3 bucket
+		Glue jobs have a node that connects to S3 bucket for customer, accelerometer, and step trainer landing zones.
+			- customer_landing_to_trusted.py
+			- accelerometer_landing_to_trusted.py
+			- step_trainer_trusted.py 
+	Manually create a Glue Table using Glue Console from JSON data
+		include all of the JSON fields in the data input files and are appropriately typed (not everything is a string).
+		SQL DDL scripts
+			- customer_landing.sql
+			- accelerometer_landing.sql
+			- step_trainer_landing.sql 
+	Use Athena to query the Landing Zone
+		Include screenshots showing various queries run on Athena, along with their results:
+			Count of customer_landing: 956 rows
+			The customer_landing data contains multiple rows with a blank shareWithResearchAsOfDate.
+			Count of accelerometer_landing: 81273 rows
+			Count of step_trainer_landing: 28680 rows
+			
+Trusted Zone
+	Configure Glue Studio to dynamically update a Glue Table schema from JSON data
+		- Glue Job Python code shows that the option to dynamically infer and update schema is enabled
+		- set the Create a table in the Data Catalog and, on subsequent runs, update the schema and add new partitions option to True
+	Use Athena to query Trusted Glue Tables
+		Include screenshots showing various queries run on Athena, along with their results:
+			Count of customer_trusted: 482 rows
+			The resulting customer_trusted data has no rows where shareWithResearchAsOfDate is blank.
+			Count of accelerometer_trusted: 40981 rows
+			Count of step_trainer_trusted: 14460 rows
+	Filter protected PII with Spark in Glue Jobs
+		customer_landing_to_trusted.py has a node that drops rows that do not have data in the sharedWithResearchAsOfDate column
+		Transform - SQL Query node often gives more consistent outputs than other node types.
+		Glue Jobs do not replace any file. Delete your S3 files and Athena table whenever you update your visual ETLs.
+	Join Privacy tables with Glue Jobs
+		accelerometer_landing_to_trusted.py has a node that inner joins the customer_trusted data with the accelerometer_landing data by emails. 
+		The produced table should have only columns from the accelerometer table.
+		
+Curated Zone
+	Write a Glue Job to join trusted data
+		- customer_trusted_to_curated.py has a node that inner joins the 
+		customer_trusted data with the 
+		accelerometer_trusted data by emails. 
+		- The produced table should have only columns from the customer table.
+	Write a Glue Job to create curated data
+		- step_trainer_trusted.py has a node that inner joins the 
+		step_trainer_landing data with the 
+		customer_curated data by serial numbers
+		- machine_learning_curated.py has a node that inner joins the 
+		step_trainer_trusted data with the 
+		accelerometer_trusted data by sensor reading time and timestamps
+			Hints:
+			- Data Source - S3 bucket node sometimes extracted incomplete data. 
+			Use the Data Source - Data Catalog node when that's the case.
+			- Use the Data Preview feature with at least 500 rows to ensure the number of customer-curated rows is correct. 
+			Click "Start data preview session", then click the gear next to the "Filter" text box to update the number of rows
+			- As before, the Transform - SQL Query node often gives more consistent outputs than any other node type. 
+			Tip - replace the JOIN node with it.
+			- The step_trainer_trusted may take about 8 minutes to run.
+	Use Athena to query Curated Glue Tables
+		Include screenshots showing various queries run on Athena, along with their results:
+			Count of customer_curated: 482 rows
+			Count of machine_learning_curated: 43681 rows
+			Hint: If you retrieve too many rows, consider dropping duplicates using the Transform - SQL Query node with the SELECT DISTINCT query.
+			
+Project Introduction
+
+	Hardware - stedi step trainer - motion sensor that records the distance of the object detected
+		trains the user to do a stedi balance exercise
+		sensor to collect data
+		mobile app that collects customer data and interacts with device sensors
+	
+	Data Engineer for STEDI step trainer team
+		extract the data produced by stedi step trainer sensors and the mobile app
+		curate them in a lakehouse solution on AWS
+		Build a data Lakehouse solution for sensor data to train a m/L model
+		Environment
+			Python and spark
+			AWS Glue
+			AWS Athena
+			AWS S3
+		Github environment
+			Git hub repository to store your sql scripts and python code
+		Workflow environment configuration
+			create python scripts using AWS Glue and Glue Studio
+			save the any code in local git hub repository
+	We recommend you shut down/delete every AWS resource 
+		(e.g., EC2, Sagemaker, Database, EMR, CloudFormation) immediately after the usage or if you are stepping away for a few hours. 
+		Otherwise, you will run out of your allocated budget.
+		
+	

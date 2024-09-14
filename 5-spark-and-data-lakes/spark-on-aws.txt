@@ -1,0 +1,263 @@
+Hadoop and Spark are two frameworks providing tools for carrying out big-data related tasks
+	Spark is faster than Hadoop 
+		Spark has an advanced directed acyclic graph (DAG) execution engine that supports acyclic data flow and in-memory computation
+		Due to this, Apache Spark runs programs up to 100 times faster than Hadoop MapReduce in memory and 10 times faster on disk
+		All the computation is done in the memory (RAM) itself
+			 MapReduce System storing the data back on the hard drives after completing all the tasks
+			 Spark, on the other hand, runs the operations and holds the data in the RAM memory rather than the hard drives used by HDFS
+	However, Spark has one drawback
+		Spark dont have its own distributed file storage system
+		Spark lacks a system to organize, store and process data files
+			leverages using HDFS or AWS S3 or any distributed file storage system
+			HDFS uses MapReduce system as a resource manager to allow the distribution of the files across the hard drives within the cluster
+
+Choosing the right data structure is crucial for efficient data processing and analytics. 
+Apache Spark offers three core abstractions
+	Resilient Distributed Dataset (RDD), the basic abstraction in Spark. Represents an immutable, distributed collection of data elements without any schema that can be operated on in parallel
+	DataFrames, Distributed collection organized into named columns. faster aggregations than RDDs and Datasets. Automatically infers schema using the SQL Engine
+	Datasets, Extension of DataFrames with type safety and object-oriented interface. Automatically infers schema using the SQL Engine
+
+Introduction to AWS Glue
+	Glue is an AWS Service that relies on Spark
+	Glue Studio to write purely Spark scripts
+
+Spark cluster includes multiple machines, in order to use Spark code on each machine, we would need to download and install Spark and its dependencies	
+
+Rent a cluster of machines in AWS to run Spark
+	EMR - AWS managed Spark service a scalable set of EC2 machines already configured to run Spark
+	EC2 - Use AWS Elastic Compute (EC2) machines and install and configure Spark and HDFS yourself
+	Glue - A serverless Spark environment with added libraries like the Glue Context and Glue Dynamic Frames
+
+Using AWS Glue to run Spark Jobs requires the following resources and configuration
+	S3 Buckets - object storage system
+	Routing Table
+	VPC Gateway
+	S3 Gateway Endpoint
+
+Setting up an S3 VPC Gateway Endpoint
+
+	step 1 - create s3 bucket
+		buckets are storage location with in aws to store the data in directories and files
+		specify a bucket, and key to identify the object
+		bucket - s3://ashp-lakehouse
+		key - path/to/file/file.csv
+		mb - make bucket
+			aws s3 mb s3://ashp-lakehouse
+		ls - list bucket
+			aws s3 ls s3://ashp-lakehouse
+			
+	step 2 - identify the VPC that needs access to S3
+		s3 not resides with in Virtual Private Cloud
+			aws ec2 describe-vpcs
+				find 1 VpcId - vpc-05e3506e88bc04c06
+
+	step 3 - identify the routing table you want to configure with your VPC Gateway
+		entity stores network path to various locations
+			aws ec2 describe-route-tables
+				find 1 RouteTableId - rtb-04618dadfd3603b56
+				also have 1 VpcId
+				
+	step 4 - create an S3 Gateway Endpoint
+		automatically allows glue jobs with a network path to reach s3
+			aws ec2 create-vpc-endpoint --vpc-id vpc-05e3506e88bc04c06 --service-name com.amazonaws.us-east-1.s3 --route-table-ids rtb-04618dadfd3603b56
+
+Creating the Glue Service Role
+
+	step 5 - create the glue service role
+		A Service Role in IAM is a Role that is used by an AWS Service to interact with cloud resources
+		network level access
+		aws glue to access s3 and other resources on your behalf grant access to glue service
+			create an IAM service role with a trust relationship with glue
+			aws iam create-role --role-name my-glue-service-role --assume-role-policy-document (paste the JSON document)
+			aws iam create-role --role-name my-glue-service-role --assume-role-policy-document '{
+		"Version": "2012-10-17",
+		"Statement": [
+			{
+				"Effect": "Allow",
+				"Principal": {
+					"Service": "glue.amazonaws.com"
+				},
+				"Action": "sts:AssumeRole"
+			}
+		]
+	}'
+			
+	step 6 - Grant Glue Privileges on the S3 Bucket
+		should have service level access to s3
+		Replace the blanks in the statement below with your S3 bucket name (ex: ashp-lakehouse)
+		aws iam put-role-policy --role-name my-glue-service-role --policy-name S3Access --policy-document (paste the JSON document)
+		aws iam put-role-policy --role-name my-glue-service-role --policy-name S3Access --policy-document '{ 
+		"Version": "2012-10-17",
+		"Statement": [ 
+			{ 
+				"Sid": "ListObjectsInBucket", 
+				"Effect": "Allow", 
+				"Action": [ 
+					"s3:ListBucket"
+				], 
+				"Resource": [ 
+					"arn:aws:s3:::ashp-lakehouse" 
+				] 
+			}, 
+			{ 
+				"Sid": "AllObjectActions",
+				"Effect": "Allow", 
+				"Action": "s3:*Object", 
+				"Resource": [ 
+					"arn:aws:s3:::ashp-lakehouse/*" 
+				] 
+			} 
+		] 
+	}'
+		
+	step 7 - grant Glue access to data in special S3 buckets used for Glue configuration, and several other resources
+		security access
+		aws iam put-role-policy --role-name my-glue-service-role --policy-name GlueAccess --policy-document '{
+		"Version": "2012-10-17",
+		"Statement": [
+			{
+				"Effect": "Allow",
+				"Action": [
+					"glue:*",
+					"s3:GetBucketLocation",
+					"s3:ListBucket",
+					"s3:ListAllMyBuckets",
+					"s3:GetBucketAcl",
+					"ec2:DescribeVpcEndpoints",
+					"ec2:DescribeRouteTables",
+					"ec2:CreateNetworkInterface",
+					"ec2:DeleteNetworkInterface",
+					"ec2:DescribeNetworkInterfaces",
+					"ec2:DescribeSecurityGroups",
+					"ec2:DescribeSubnets",
+					"ec2:DescribeVpcAttribute",
+					"iam:ListRolePolicies",
+					"iam:GetRole",
+					"iam:GetRolePolicy",
+					"cloudwatch:PutMetricData"
+				],
+				"Resource": [
+					"*"
+				]
+			},
+			{
+				"Effect": "Allow",
+				"Action": [
+					"s3:CreateBucket",
+					"s3:PutBucketPublicAccessBlock"
+				],
+				"Resource": [
+					"arn:aws:s3:::aws-glue-*"
+				]
+			},
+			{
+				"Effect": "Allow",
+				"Action": [
+					"s3:GetObject",
+					"s3:PutObject",
+					"s3:DeleteObject"
+				],
+				"Resource": [
+					"arn:aws:s3:::aws-glue-*/*",
+					"arn:aws:s3:::*/*aws-glue-*/*"
+				]
+			},
+			{
+				"Effect": "Allow",
+				"Action": [
+					"s3:GetObject"
+				],
+				"Resource": [
+					"arn:aws:s3:::crawler-public*",
+					"arn:aws:s3:::aws-glue-*"
+				]
+			},
+			{
+				"Effect": "Allow",
+				"Action": [
+					"logs:CreateLogGroup",
+					"logs:CreateLogStream",
+					"logs:PutLogEvents",
+					"logs:AssociateKmsKey"
+				],
+				"Resource": [
+					"arn:aws:logs:*:*:/aws-glue/*"
+				]
+			},
+			{
+				"Effect": "Allow",
+				"Action": [
+					"ec2:CreateTags",
+					"ec2:DeleteTags"
+				],
+				"Condition": {
+					"ForAllValues:StringEquals": {
+						"aws:TagKeys": [
+							"aws-glue-service-resource"
+						]
+					}
+				},
+				"Resource": [
+					"arn:aws:ec2:*:*:network-interface/*",
+					"arn:aws:ec2:*:*:security-group/*",
+					"arn:aws:ec2:*:*:instance/*"
+				]
+			}
+		]
+	}'
+
+Copy the data (exercise files) to the own s3 bucket ashp-lakehouse
+	git clone git@github.com:udacity/nd027-Data-Engineering-Data-Lakes-AWS-Exercises.git
+	go to s3 bucket and add folders manually to the bucket
+	aws s3 ls s3://ashp-lakehouse/customer/landing
+Search aws glue studio in aws seatch bar
+	Select Visual ETL
+	Job Details
+		Name
+		IAM Role
+		Job bookmark - Disable
+	Visual
+		data source
+			s3 source type
+			s3 url - recursive
+			format
+			Output schema
+		Transform	
+			key 
+			operation
+			value
+		Target
+			format
+			compression type
+			s3 target location
+	Save and Run
+	
+	
+	
+	
+	
+AWS Glue Studio
+	Glue Studio to write Spark jobs that can be automated, and set to run at certain intervals
+	Glue Studio is a Graphical User Interface (GUI) for interacting with Glue to create Spark jobs with added capabilities
+	Glue APIs give access to things like Glue Tables, and Glue Context
+	You can create Glue Jobs by writing, and uploading python code
+	Glue Studio also provides a drag and drop experience. you can create a flow diagram using Glue Studio
+	Glue Studio Visual Editor
+		Three types of nodes when creating a pipeline
+			Source- the data that will be consumed in the pipeline (Snowflake, S3, Redshift, DynamoDB, Kinesis, Glue Data Catalog, Apache Kafka, MySQL, PostgreSQL, Google BigQuery etc)
+			Transform - any transformation that will be applied (Joins, Mapping, Drop duplicates, Filter, Union, Missing values, exclude PII Personally Identifiable Information, etc)
+			Target - the destination for the data (Snowflake, S3, Redshift, DynamoDB, Kinesis, Glue Data Catalog, Apache Kafka, MySQL, PostgreSQL, Google BigQuery etc)
+
+Create a spark job with glue studio
+	https://learn.udacity.com/nanodegrees/nd027-ent-rbs/parts/cd12441/lessons/d4210a36-0ff4-40ed-8da0-ef71a207e9a9/concepts/33f1234f-d43a-42d9-acfe-25451801ea4c
+	https://learn.udacity.com/nanodegrees/nd027-ent-rbs/parts/cd12441/lessons/d4210a36-0ff4-40ed-8da0-ef71a207e9a9/concepts/1d86ceab-38c1-4ee5-a6d9-d8166155a4e1
+	
+Differences between HDFS and AWS S3
+	AWS S3 is an object storage system that stores the data using key value pairs
+		 HDFS is an actual distributed file system that guarantees fault tolerance
+		 HDFS achieves fault tolerance by duplicating the same files at 3 different nodes across the cluster by default 
+		 (it can be configured to reduce or increase this duplication)
+	AWS S3 is a binary object store, it can store all kinds of formats, even images and videos
+		HDFS strictly requires a file format - the popular choices are avro and parquet, 
+		which have relatively high compression rates making it useful for storing large datasets
+		
